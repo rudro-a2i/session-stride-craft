@@ -1,7 +1,8 @@
+import { METHODS } from 'http';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {
-  id: string;
+  email: string;
   name: string;
   token: string;
 }
@@ -42,9 +43,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (savedToken && savedUser) {
         try {
-          const response = await fetch(`http://localhost/crud-server/getinfo.php?token=${savedToken}`);
+          const response = await fetch(`http://localhost/users/getsession?token=${savedToken}`,{
+            headers: {
+              'accept':'application/json',
+              'Content-Type': 'application/json',
+            },
+          })
           const data = await response.json();
-          
+          console.log(savedToken)
           if (data.status === 'successful') {
             setUser(JSON.parse(savedUser));
           } else {
@@ -69,18 +75,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      const response = await fetch(`http://localhost/crud-server/login.php?id=${encodeURIComponent(email)}&pass=${encodeURIComponent(password)}`);
+      console.log("test");
+      const response = await fetch('http://localhost/users/login', {
+        method: 'POST',
+        headers: {
+          'accept':'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          pass: password
+        })
+      });
+     
+      console.log(response);
+      
       const data = await response.json();
 
-      if (data.status === 'successful') {
+      if (data.status === 'successful' && data.token) {
         const userData = {
-          id: email,
-          name: email.split('@')[0], // Extract name from email for now
-          token: data.session_token
+          email,
+          name: data.name, // No name in response, so fallback
+          token: data.token
         };
-        
+
         setUser(userData);
-        localStorage.setItem('session_token', data.session_token);
+        localStorage.setItem('session_token', data.token);
         localStorage.setItem('user_data', JSON.stringify(userData));
         setIsLoading(false);
         return true;
@@ -101,23 +121,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost/crud-server/create.php', {
+      const response = await fetch('http://localhost/users/create', {
         method: 'POST',
         headers: {
+          'accept':'application/json',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name,
-          id: email,
-          pass: password,
-          pass2: confirmPassword
+          email,
+          pass: password
         })
       });
 
       const data = await response.json();
-
-      if (response.ok && data.status !== 'error') {
+      console.log("here")
+      if (data.status === 'successful' && data.user) {
         // After successful registration, log the user in
+
         const loginSuccess = await login(email, password);
         return loginSuccess;
       } else {
@@ -135,7 +156,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     if (user && user.token) {
       try {
-        await fetch(`http://localhost/crud-server/logout.php?id=${encodeURIComponent(user.id)}&token=${user.token}`);
+        const savedToken = localStorage.getItem('session_token');
+        const response = await fetch(`http://localhost/users/logout?token=${encodeURIComponent(savedToken)}`,
+      {
+        headers: {
+        'Accept': 'application/json'
+        }
+      }
+      );
+        
       } catch (error) {
         // Handle network error silently
       }
